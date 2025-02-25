@@ -9,7 +9,7 @@ app = FastAPI()
 # Add CORS middleware (already in your code, but ensure it’s there)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:19006"],  # Expo web origin (adjust if needed)
+    allow_origins=["http://localhost:8081"],  # Expo web origin (adjust if needed)
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods (GET, POST, DELETE, etc.)
     allow_headers=["*"],  # Allow all headers
@@ -35,7 +35,7 @@ class Task(BaseModel):
 async def get_tasks():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM tasks")
+    cur.execute("SELECT * FROM tasks")  # Already includes completed if added
     tasks = cur.fetchall()
     cur.close()
     conn.close()
@@ -69,5 +69,39 @@ async def delete_task(task_id: int):
     if deleted_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task deleted successfully"}
+
+# Update a task's category by ID
+@app.patch("/tasks/{task_id}")
+async def update_task_category(task_id: int, task: Task):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "UPDATE tasks SET category = %s WHERE id = %s RETURNING *",
+        (task.category, task_id)
+    )
+    updated_task = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    if updated_task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return updated_task
+
+# Update a task's completed status by ID
+@app.patch("/tasks/{task_id}/completed")
+async def update_task_completed(task_id: int, completed: bool = True):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "UPDATE tasks SET completed = %s WHERE id = %s RETURNING *",
+        (completed, task_id)
+    )
+    updated_task = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    if updated_task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return updated_task
 
 # Run with: uvicorn main:app --reload
